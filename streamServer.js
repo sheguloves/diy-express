@@ -1,0 +1,169 @@
+const express = require('express');
+
+const app = express();
+
+const chunks = [
+  `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Streaming test</title>
+</head>
+<body>
+  <h1>This is the first phase</h1>
+`,
+`
+<section>
+    然而,SSR 虽然降低了 FP 时间,但是在 FP 与 可交互(Time To Interactive) 中有大量的不可交互时间,在极端情况下,用户会一脸懵逼：“咦,页面上不是已经有内容了吗,怎么点不了滚不动？”
+
+    总结一下：
+
+    CSR与SSR的共同点是,先返回了 HTML,因为 HTML 是一切的基础。
+
+    之后 CSR 先返回了 js,后返回了 data,在首次渲染之前页面就已经可交互了。
+
+    而 SSR 先返回了 data,后返回 js,页面在可交互前就完成了首次渲染,使用户可以更快的看到数据。
+
+    但是,先返回 js 还是先返回 data,这两者并不冲突,不应该是阻塞串行的,而应该是并行的。
+  </section>
+`,
+`
+<h1>This is the second phase</h1>
+`,
+`
+<section>
+    React Server Actions允许你直接在服务器上运行异步代码。它们消除了创建API端点来改变数据的需要。相反,您可以编写在服务器上执行的异步函数,这些函数可以从您的客户机或服务器组件调用。安全性是web应用程序的首要任务,因为它们容易受到各种威胁的攻击。这就是服务器操作的用武之地。它们提供有效的安全解决方案,防止不同类型的攻击,保护您的数据,并确保授权访问。Server Actions通过POST请求、加密闭包、严格的输入检查、错误消息散列和主机限制等技术来实现这一点,所有这些技术一起工作,显著提高了应用程序的安全性。(所以,Server Action的主要作用是安全?)
+  </section>
+`,
+`
+</body>
+</html>
+`
+]
+
+const test = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Streaming test</title>
+</head>
+<body>
+  <h1>This is the first phase</h1>
+  <section>
+    然而,SSR 虽然降低了 FP 时间,但是在 FP 与 可交互(Time To Interactive) 中有大量的不可交互时间,在极端情况下,用户会一脸懵逼：“咦,页面上不是已经有内容了吗,怎么点不了滚不动？”
+
+    总结一下：
+
+    CSR与SSR的共同点是,先返回了 HTML,因为 HTML 是一切的基础。
+
+    之后 CSR 先返回了 js,后返回了 data,在首次渲染之前页面就已经可交互了。
+
+    而 SSR 先返回了 data,后返回 js,页面在可交互前就完成了首次渲染,使用户可以更快的看到数据。
+
+    但是,先返回 js 还是先返回 data,这两者并不冲突,不应该是阻塞串行的,而应该是并行的。
+  </section>
+  <h1>This is the second phase</h1>
+  <section>
+    React Server Actions允许你直接在服务器上运行异步代码。它们消除了创建API端点来改变数据的需要。相反,您可以编写在服务器上执行的异步函数,这些函数可以从您的客户机或服务器组件调用。安全性是web应用程序的首要任务,因为它们容易受到各种威胁的攻击。这就是服务器操作的用武之地。它们提供有效的安全解决方案,防止不同类型的攻击,保护您的数据,并确保授权访问。Server Actions通过POST请求、加密闭包、严格的输入检查、错误消息散列和主机限制等技术来实现这一点,所有这些技术一起工作,显著提高了应用程序的安全性。(所以,Server Action的主要作用是安全?)
+  </section>
+</body>
+</html>
+
+`
+
+function normalResponseHandler(response) {
+  try {
+
+    response.useChunkedEncodingByDefault = true;
+    response.writeHead(200, {
+      "content-type": "text/html",
+      "content-transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff"
+    });
+
+    response.write(test);
+    response.end();
+  } catch(error) {
+    response.writeHead(500, {
+      "content-type": "text/pain"
+    });
+    response.end('Errors found!');
+  }
+}
+
+function streamingResponseHandler(response) {
+  try {
+
+    response.useChunkedEncodingByDefault = true;
+    response.writeHead(200, {
+      "content-type": "text/html",
+      "content-transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff"
+    });
+
+    let len = chunks.length;
+    let current = 0;
+
+    function delay() {
+      if (current < len) {
+        setTimeout(() => {
+          response.write(chunks[current]);
+          // response.flushHeaders();
+          current ++;
+          delay();
+        }, 400);
+      } else {
+        response.end();
+      }
+    }
+
+    delay();
+
+  } catch(error) {
+    response.writeHead(500, {
+      "content-type": "text/pain"
+    });
+    response.end('Errors found!');
+  }
+}
+
+app.get("/", async (request, response) => {
+  // normalResponseHandler(response);
+  streamingResponseHandler(response);
+
+  //   response.write(BEFORE);
+  //   response.flushHeaders();
+
+
+  //   await new Promise((resolve, reject) => {
+  //     stream.on("error", err => {
+  //       stream.unpipe(response);
+  //       reject(err);
+  //     });
+  //     stream.on("end", () => {
+  //       console.log("Render End: ", Date.now() - start);
+  //       response.write("</div></body></html>");
+  //       response.end();
+  //       resolve();
+  //     });
+  //     stream.pipe(
+  //       response,
+  //       { end: false }
+  //     );
+  //   });
+  // } catch (err) {
+  //   response.writeHead(500, {
+  //     "content-type": "text/pain"
+  //   });
+  //   response.end(String((err && err.stack) || err));
+  //   return;
+  // }
+});
+
+const listener = app.listen(4000, () => {
+  console.log("Your app is listening on port " + listener.address().port);
+});
